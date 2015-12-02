@@ -223,6 +223,9 @@ int main(int argc, char** argv){
                 PREV = msg.prev;
                 NEXT = msg.next;
                 START = 1;
+                pthread_mutex_lock(&robot_status.mutex);
+                robot_status.status = PREV == 0xFF ? LEADER : FOLLOWER;
+                pthread_mutex_unlock(&robot_status.mutex);
             }else {
                 continue;
             }
@@ -270,7 +273,11 @@ int main(int argc, char** argv){
                 case STOP:
                     if (WAITED > 20){
                         WAITED = 0;
+                        pthread_mutex_lock(&robot_position.mutex);
+                        pthread_mutex_lock(&robot_angle.mutex);
                         dodge(robot_position, robot_angle, BALL_X, BALL_Y); //TODO
+                        pthread_mutex_unlock(&robot_position.mutex);
+                        pthread_mutex_unlock(&robot_angle.mutex);
                     } else {
                         sleep(1);
                         WAITED += 1;
@@ -312,7 +319,11 @@ int main(int argc, char** argv){
                 case GRABBED_STOP:
                     if (WAITED > 20){
                         WAITED = 0;
+                        pthread_mutex_lock(&robot_position.mutex);
+                        pthread_mutex_lock(&robot_angle.mutex);
                         dodge(robot_position, robot_angle, BALL_X, BALL_Y); //TODO
+                        pthread_mutex_unlock(&robot_position.mutex);
+                        pthread_mutex_unlock(&robot_angle.mutex);
                     } else {
                         sleep(1);
                         WAITED += 1;
@@ -329,11 +340,21 @@ int main(int argc, char** argv){
             if (msg){
                 switch (msg.type){
                     case 0: // ACTION msg
-                        moteur_avancer(msg.dist * sin(to_radians(msg.angle)), msg.dist * cos(to_radians(msg.angle)));
+                        pthread_mutex_lock(&robot_position.mutex);
+                        moteur_avancer(robot_position.x + msg.dist * sin(to_radians(msg.angle)), robot_position.y + msg.dist * cos(to_radians(msg.angle)));
+                        pthread_mutex_unlock(&robot_position.mutex);
+                        break;
                     case 2: // LEAD msg
                         sleep(15);
                         //play_zelda();
                         robot_status.status = LEADER;
+                        break;
+                    case 5: // WAIT msg
+                        moteur_stop();
+                        sleep(msg.delay);
+                        break;
+                    default:
+                        printf("Just received a useless message !");
                 }
             }
         } else {
